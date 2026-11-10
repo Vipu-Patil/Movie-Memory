@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+next-env.d.ts
+*.tsbuildinfo
+
+# Prisma client is generated on install (npm run postinstall)
+src/generated
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+.DS_Store
+coverage

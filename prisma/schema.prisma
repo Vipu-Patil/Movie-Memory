@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// One row per Google account. `googleSub` (Google's stable subject id) is the
+/// identity key; email is NOT unique or used for lookup because it can change.
+model User {
+  id            String   @id @default(cuid())
+  googleSub     String   @unique
+  email         String
+  /// Google may omit name and picture, so both are nullable.
+  name          String?
+  image         String?
+  /// null means the user has not completed onboarding yet.
+  favoriteMovie String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  facts    Fact[]
+  factLock FactGenerationLock?
+}
+
+/// Append-only log of generated facts. `movie` is a snapshot of the user's
+/// favorite movie at generation time, so the cache key is (userId, movie) and
+/// a fact is never served for a movie it was not written about.
+model Fact {
+  id        String   @id @default(cuid())
+  userId    String
+  movie     String
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Serves the hot query: "latest fact for this user + movie".
+  @@index([userId, movie, createdAt(sort: Desc)])
+}
+
+/// "Generation in progress" lease, at most one row per user. Acquired with a
+/// single atomic INSERT ... ON CONFLICT statement. `expiresAt` lets another
+/// request take over if the holder crashed; `token` ensures only the holder
+/// can release it.
+model FactGenerationLock {
+  userId    String   @id
+  token     String
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
